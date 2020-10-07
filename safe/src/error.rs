@@ -49,6 +49,12 @@ pub enum SafeErrorCode {
     InvalidDepositAmount = 36,
     InvalidPeriod = 37,
     InsufficientWithdrawalBalance = 38,
+    WhitelistAlreadyInitialized = 39,
+    AlreadyClaimed = 40,
+    InvalidTokenAccountOwner = 41,
+    InvalidTokenAccountMint = 42,
+    WhitelistFull = 43,
+    WhitelistProgramNotFound = 44,
     Unknown = 1000,
 }
 

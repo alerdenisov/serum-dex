@@ -24,6 +24,8 @@ pub fn handler<'a>(
     let safe_vault_acc_info = next_account_info(acc_infos)?;
     let safe_vault_authority_acc_info = next_account_info(acc_infos)?;
     let safe_acc_info = next_account_info(acc_infos)?;
+    let nft_token_acc_info = next_account_info(acc_infos)?;
+    let nft_mint_acc_info = next_account_info(acc_infos)?;
     let token_program_acc_info = next_account_info(acc_infos)?;
     let clock_acc_info = next_account_info(acc_infos)?;
 
@@ -34,6 +36,8 @@ pub fn handler<'a>(
         vesting_acc_info,
         safe_vault_acc_info,
         safe_acc_info,
+        nft_token_acc_info,
+        nft_mint_acc_info,
         token_program_acc_info,
         clock_acc_info,
     })?;
@@ -49,6 +53,8 @@ pub fn handler<'a>(
                 beneficiary_token_acc_info,
                 safe_acc_info,
                 token_program_acc_info,
+                nft_token_acc_info,
+                nft_mint_acc_info,
             })
             .map_err(Into::into)
         },
@@ -67,6 +73,8 @@ fn access_control<'a>(req: AccessControlRequest<'a>) -> Result<(), SafeError> {
         safe_vault_acc_info,
         safe_acc_info,
         token_program_acc_info,
+        nft_token_acc_info,
+        nft_mint_acc_info,
         clock_acc_info,
     } = req;
 
@@ -131,6 +139,20 @@ fn access_control<'a>(req: AccessControlRequest<'a>) -> Result<(), SafeError> {
         }
     }
 
+    // NFT Mint.
+    {
+        // todo
+        //
+        // mint must match the vesting account mint
+    }
+
+    // NFT Token.
+    {
+        // todo
+        //
+        // mint of the token must match the above mint
+    }
+
     // Token program.
     {
         if *token_program_acc_info.key != spl_token::ID {
@@ -159,11 +181,18 @@ fn state_transition<'a, 'b>(req: StateTransitionRequest<'a, 'b>) -> Result<(), S
         beneficiary_token_acc_info,
         safe_acc_info,
         token_program_acc_info,
+        nft_token_acc_info,
+        nft_mint_acc_info,
     } = req;
 
     // Remove the withdrawn token from the vesting account.
     {
         vesting_acc.deduct(amount);
+    }
+
+    // Burn the NFT.
+    {
+        // todo
     }
 
     // Withdraw token from vault to the user address.
@@ -208,6 +237,8 @@ struct AccessControlRequest<'a> {
     safe_acc_info: &'a AccountInfo<'a>,
     safe_vault_acc_info: &'a AccountInfo<'a>,
     token_program_acc_info: &'a AccountInfo<'a>,
+    nft_token_acc_info: &'a AccountInfo<'a>,
+    nft_mint_acc_info: &'a AccountInfo<'a>,
     clock_acc_info: &'a AccountInfo<'a>,
 }
 
@@ -219,4 +250,6 @@ struct StateTransitionRequest<'a, 'b> {
     safe_vault_acc_info: &'a AccountInfo<'a>,
     safe_vault_authority_acc_info: &'a AccountInfo<'a>,
     token_program_acc_info: &'a AccountInfo<'a>,
+    nft_token_acc_info: &'a AccountInfo<'a>,
+    nft_mint_acc_info: &'a AccountInfo<'a>,
 }

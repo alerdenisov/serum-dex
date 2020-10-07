@@ -17,6 +17,7 @@ members = [
 ]
 exclude = [
     "dex",
+    "wl/program",
     "registry/program",
     "rewards/constant",
     "safe/program",

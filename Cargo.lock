@@ -2955,6 +2955,7 @@ dependencies = [
 name = "serum-safe"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "bytemuck",
  "lazy_static",
  "num_enum",

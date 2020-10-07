@@ -1,9 +1,12 @@
+use common::lifecycle::Initialized;
 use rand::rngs::OsRng;
+use serum_common::client::rpc;
 use serum_common::pack::Pack;
-use serum_safe::accounts::Vesting;
+use serum_safe::accounts::{Vesting, Whitelist};
 use solana_client_gen::solana_sdk;
 use solana_client_gen::solana_sdk::commitment_config::CommitmentConfig;
 use solana_client_gen::solana_sdk::instruction::AccountMeta;
+use solana_client_gen::solana_sdk::pubkey::Pubkey;
 use solana_client_gen::solana_sdk::signature::{Keypair, Signer};
 
 mod common;
@@ -13,13 +16,15 @@ fn deposit() {
     // Given.
     //
     // An initialized safe.
-    let common::lifecycle::Initialized {
+    let Initialized {
         client,
         safe_acc,
+        safe_authority,
         safe_srm_vault,
         safe_srm_vault_authority,
         depositor,
         depositor_balance_before,
+        whitelist,
         ..
     } = common::lifecycle::initialize();
 
@@ -32,28 +37,25 @@ fn deposit() {
         expected_deposit,
         expected_end_slot,
         expected_period_count,
+        nft_mint,
     ) = {
-        let deposit_accs = [
-            AccountMeta::new(depositor.pubkey(), false),
-            AccountMeta::new(client.payer().pubkey(), true), // Owner of the depositor SPL account.
-            AccountMeta::new(safe_srm_vault.pubkey(), false),
-            AccountMeta::new(safe_acc.pubkey(), false),
-            AccountMeta::new_readonly(spl_token::ID, false),
-            AccountMeta::new_readonly(solana_sdk::sysvar::rent::ID, false),
-            AccountMeta::new_readonly(solana_sdk::sysvar::clock::ID, false),
-        ];
         let vesting_acc_beneficiary = Keypair::generate(&mut OsRng);
         let end_slot = 100_000;
         let period_count = 1000;
         let deposit_amount = 100;
+        let decimals = 3;
 
-        let (_signature, keypair) = client
-            .create_account_and_deposit(
-                &deposit_accs,
-                vesting_acc_beneficiary.pubkey(),
+        let (_signature, keypair, mint) = client
+            .create_vesting_account(
+                &depositor.pubkey(),
+                &safe_acc.pubkey(),
+                &safe_srm_vault.pubkey(),
+                &safe_srm_vault_authority,
+                &vesting_acc_beneficiary.pubkey(),
                 end_slot,
                 period_count,
                 deposit_amount,
+                decimals,
             )
             .unwrap();
         (
@@ -62,6 +64,7 @@ fn deposit() {
             deposit_amount,
             end_slot,
             period_count,
+            mint,
         )
     };
 
@@ -83,13 +86,15 @@ fn deposit() {
         assert_eq!(vesting_acc.initialized, true);
         assert_eq!(vesting_acc.end_slot, expected_end_slot);
         assert_eq!(vesting_acc.period_count, expected_period_count);
+        assert_eq!(vesting_acc.locked_nft_mint, nft_mint);
+        assert_eq!(vesting_acc.whitelist_owned, 0);
     }
     // Then.
     //
     // The depositor's SPL token account has funds reduced.
     {
         let depositor_spl_acc: spl_token::state::Account =
-            serum_common::client::rpc::account_token_unpacked(client.rpc(), &depositor.pubkey());
+            rpc::account_token_unpacked(client.rpc(), &depositor.pubkey());
         let expected_balance = depositor_balance_before - expected_deposit;
         assert_eq!(depositor_spl_acc.amount, expected_balance);
     }
@@ -98,12 +103,36 @@ fn deposit() {
     // The program-owned SPL token vault has funds increased.
     {
         let safe_vault_spl_acc: spl_token::state::Account =
-            serum_common::client::rpc::account_token_unpacked(
-                client.rpc(),
-                &safe_srm_vault.pubkey(),
-            );
+            rpc::account_token_unpacked(client.rpc(), &safe_srm_vault.pubkey());
         assert_eq!(safe_vault_spl_acc.amount, expected_deposit);
         // Sanity check the owner of the vault account.
         assert_eq!(safe_vault_spl_acc.owner, safe_srm_vault_authority);
     }
+
+    // Add to whitelist.
+    {
+        let staking_program_id: Pubkey = std::env::var("TEST_WHITELIST_PROGRAM_ID")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let accounts = [
+            AccountMeta::new_readonly(safe_authority.pubkey(), true),
+            AccountMeta::new_readonly(safe_acc.pubkey(), false),
+            AccountMeta::new(whitelist, false),
+        ];
+        let signers = [client.payer(), &safe_authority];
+        client
+            .whitelist_add_with_signers(&signers, &accounts, staking_program_id)
+            .unwrap();
+
+        let whitelist = rpc::account_unpacked::<Whitelist>(client.rpc(), &whitelist);
+
+        let mut expected = Whitelist::default();
+        expected.push(staking_program_id);
+
+        assert_eq!(whitelist, expected);
+    }
+
+    // Transfer funds from the safe to the whitelisted program.
+    {}
 }
