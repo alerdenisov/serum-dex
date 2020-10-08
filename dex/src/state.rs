@@ -260,7 +260,7 @@ impl MarketState {
         Ok(open_orders)
     }
 
-    fn load_bids_mut<'a>(&self, bids: &'a AccountInfo) -> DexResult<RefMut<'a, Slab>> {
+    pub fn load_bids_mut<'a>(&self, bids: &'a AccountInfo) -> DexResult<RefMut<'a, Slab>> {
         check_assert_eq!(&bids.key.to_aligned_bytes(), &self.bids)
             .map_err(|_| DexErrorCode::WrongBidsAccount)?;
         let (header, buf) = strip_header::<OrderBookStateHeader, u8>(bids, false)?;
@@ -269,7 +269,7 @@ impl MarketState {
         Ok(RefMut::map(buf, Slab::new))
     }
 
-    fn load_asks_mut<'a>(&self, asks: &'a AccountInfo) -> DexResult<RefMut<'a, Slab>> {
+    pub fn load_asks_mut<'a>(&self, asks: &'a AccountInfo) -> DexResult<RefMut<'a, Slab>> {
         check_assert_eq!(&asks.key.to_aligned_bytes(), &self.asks)
             .map_err(|_| DexErrorCode::WrongAsksAccount)?;
         let (header, buf) = strip_header::<OrderBookStateHeader, u8>(asks, false)?;
@@ -278,7 +278,10 @@ impl MarketState {
         Ok(RefMut::map(buf, Slab::new))
     }
 
-    fn load_request_queue_mut<'a>(&self, queue: &'a AccountInfo) -> DexResult<RequestQueue<'a>> {
+    pub fn load_request_queue_mut<'a>(
+        &self,
+        queue: &'a AccountInfo,
+    ) -> DexResult<RequestQueue<'a>> {
         check_assert_eq!(&queue.key.to_aligned_bytes(), &self.req_q)
             .map_err(|_| DexErrorCode::WrongRequestQueueAccount)?;
 
@@ -291,7 +294,7 @@ impl MarketState {
         Ok(Queue { header, buf })
     }
 
-    fn load_event_queue_mut<'a>(&self, queue: &'a AccountInfo) -> DexResult<EventQueue<'a>> {
+    pub fn load_event_queue_mut<'a>(&self, queue: &'a AccountInfo) -> DexResult<EventQueue<'a>> {
         check_assert_eq!(&queue.key.to_aligned_bytes(), &self.event_q)
             .map_err(|_| DexErrorCode::WrongEventQueueAccount)?;
         let (header, buf) = strip_header::<EventQueueHeader, Event>(queue, false)?;
@@ -1227,20 +1230,19 @@ pub mod account_parser {
         Ok(())
     });
 
-    
     #[macro_export]
     macro_rules! declare_validated_token_account_wrapper {
         ($WrapperT:ident, $validate:expr $(, $a:ident : $t:ty)*) => {
             #[derive(Copy, Clone)]
             pub struct $WrapperT<'a, 'b: 'a>(TokenAccount<'a, 'b>);
             impl<'a, 'b: 'a> $WrapperT<'a, 'b> {
-                fn new(token_account: TokenAccount<'a, 'b> $(,$a: $t)*) -> DexResult<Self> {
+                pub fn new(token_account: TokenAccount<'a, 'b> $(,$a: $t)*) -> DexResult<Self> {
                     let validate_result: DexResult = $validate(token_account $(,$a)*);
                     validate_result?;
                     Ok($WrapperT(token_account))
                 }
 
-                fn from_account(account: &'a AccountInfo<'b> $(,$a: $t)*) -> DexResult<Self> {
+                pub fn from_account(account: &'a AccountInfo<'b> $(,$a: $t)*) -> DexResult<Self> {
                     let token_account = TokenAccount::new(account)?;
                     Self::new(token_account $(,$a)*)
                 }
