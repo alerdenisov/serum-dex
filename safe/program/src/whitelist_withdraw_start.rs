@@ -14,9 +14,8 @@ pub fn handler<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     amount: u64,
-    instruction_data: Vec<u8>,
 ) -> Result<(), SafeError> {
-    info!("handler: whitelist_withdraw");
+    info!("handler: whitelist_withdraw_start");
 
     let acc_infos = &mut accounts.iter();
 
@@ -54,7 +53,6 @@ pub fn handler<'a>(
             state_transition(StateTransitionRequest {
                 accounts,
                 amount,
-                instruction_data: instruction_data.clone(),
                 safe_acc: safe_acc_info.key,
                 nonce: safe.nonce,
                 wl_prog_acc_info,
@@ -74,7 +72,7 @@ pub fn handler<'a>(
 }
 
 fn access_control(req: AccessControlRequest) -> Result<(), SafeError> {
-    info!("access-control: whitelist_withdraw");
+    info!("access-control: whitelist_withdraw_start");
 
     let AccessControlRequest {
         beneficiary_acc_info,
@@ -90,17 +88,19 @@ fn access_control(req: AccessControlRequest) -> Result<(), SafeError> {
 
     // TODO
 
+    // TODO: beneficiary authorized
+    // TODO: thie vesting.whitelist_pending amount *must* be 0.
+
     info!("access-control: success");
 
     Ok(())
 }
 
 fn state_transition(req: StateTransitionRequest) -> Result<(), SafeError> {
-    info!("state-transition: whitelist_withdraw");
+    info!("state-transition: whitelist_withdraw_start");
 
     let StateTransitionRequest {
         vesting,
-        instruction_data,
         accounts,
         amount,
         nonce,
@@ -130,48 +130,8 @@ fn state_transition(req: StateTransitionRequest) -> Result<(), SafeError> {
         solana_sdk::program::invoke_signed(&approve_instr, &accounts[..], &[&signer_seeds])?;
     }
 
-    // Invoke relay.
-    {
-        info!("invoking relay");
-        let mut meta_accounts = vec![
-            AccountMeta::new(*safe_vault_acc_info.key, false),
-            AccountMeta::new(*wl_prog_vault_acc_info.key, false),
-            AccountMeta::new_readonly(*wl_prog_vault_authority_acc_info.key, false),
-            AccountMeta::new_readonly(*tok_prog_acc_info.key, false),
-        ];
-        for a in remaining_relay_accs {
-            if a.is_writable {
-                meta_accounts.push(AccountMeta::new(*a.key, a.is_signer));
-            } else {
-                meta_accounts.push(AccountMeta::new_readonly(*a.key, a.is_signer));
-            }
-        }
-        let relay_instruction = Instruction {
-            program_id: *wl_prog_acc_info.key,
-            accounts: meta_accounts,
-            data: instruction_data,
-        };
-
-        solana_sdk::program::invoke(&relay_instruction, &accounts[..])?;
-    }
-
-    // Revoke delegate access.
-    {
-        let revoke_instr = spl_token::instruction::revoke(
-            &tok_prog_acc_info.key,
-            &safe_vault_acc_info.key,
-            &safe_vault_auth_acc_info.key,
-            &[],
-        )?;
-        solana_sdk::program::invoke_signed(&revoke_instr, &accounts[..], &[&signer_seeds])?;
-    }
-
     // Update vesting account.
-    {
-        let vault = spl_token::state::Account::unpack(&safe_vault_acc_info.try_borrow_data()?)?;
-        let amount_transferred = amount - vault.delegated_amount;
-        vesting.whitelist_owned += amount_transferred;
-    }
+    vesting.whitelist_pending_transfer = amount;
 
     info!("state-transition: success");
 
@@ -191,7 +151,6 @@ struct AccessControlRequest<'a> {
 }
 
 struct StateTransitionRequest<'a, 'b> {
-    instruction_data: Vec<u8>,
     vesting: &'b mut Vesting,
     accounts: &'a [AccountInfo<'a>],
     amount: u64,

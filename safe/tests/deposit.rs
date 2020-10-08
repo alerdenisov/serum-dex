@@ -7,6 +7,7 @@ use serum_wl_program::client::Client as StakeClient;
 use solana_client_gen::solana_sdk;
 use solana_client_gen::solana_sdk::commitment_config::CommitmentConfig;
 use solana_client_gen::solana_sdk::instruction::AccountMeta;
+use solana_client_gen::solana_sdk::program_option::COption;
 use solana_client_gen::solana_sdk::pubkey::Pubkey;
 use solana_client_gen::solana_sdk::signature::{Keypair, Signer};
 use spl_token::state::Account as TokenAccount;
@@ -141,6 +142,8 @@ fn deposit() {
     }
 
     // Transfer funds from the safe to the whitelisted program.
+
+    // Transfer funds from the whitelisted program back to the Safe.
     {
         let mut accounts = vec![
             AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
@@ -182,3 +185,75 @@ fn deposit() {
         // Staking program's vault should be incremented.
     }
 }
+
+/*
+    {
+        let stake_amount = 98;
+        let signers = [client.payer(), &expected_beneficiary];
+        let mut accounts = vec![
+            AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
+            AccountMeta::new(vesting_acc_kp.pubkey(), false),
+            AccountMeta::new_readonly(safe_acc.pubkey(), false),
+            AccountMeta::new_readonly(safe_srm_vault_authority, false),
+            AccountMeta::new_readonly(staking_program_id, false),
+            // Below are relay accounts.
+            AccountMeta::new(safe_srm_vault.pubkey(), false),
+            AccountMeta::new(stake_init.vault, false),
+            AccountMeta::new_readonly(stake_init.vault_authority, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            // Program specific relay accounts.
+            AccountMeta::new(stake_init.instance, false),
+        ];
+
+        // Step 1. Give delegate access to whitelisted program.
+        {
+            let _tx_sig = client
+                .whitelist_withdraw_start_with_signers(&signers, &accounts, stake_amount)
+                .unwrap();
+            let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
+            let safe_vault =
+                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
+            assert_eq!(vesting.whitelist_pending_transfer, stake_amount);
+            assert_eq!(
+                safe_vault.delegate,
+                COption::Some(stake_init.vault_authority)
+            );
+            assert_eq!(safe_vault.delegated_amount, stake_amount);
+        }
+
+        // Step 2. Pull the funds from staking contract.
+        {
+            let stake_accounts = [
+                AccountMeta::new(safe_srm_vault.pubkey(), false),
+                AccountMeta::new(stake_init.vault, false),
+                AccountMeta::new_readonly(stake_init.vault_authority, false),
+                AccountMeta::new_readonly(spl_token::ID, false),
+                AccountMeta::new(stake_init.instance, false),
+            ];
+            stake_client.stake(&stake_accounts, stake_amount).unwrap();
+            let safe_vault =
+                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
+            let stake_vault =
+                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &stake_init.vault);
+            assert_eq!(safe_vault.amount, expected_deposit - stake_amount);
+            assert_eq!(stake_vault.amount, stake_amount);
+        }
+
+        // Step 3. Notify the safe we're done.
+        {
+            client
+                .whitelist_withdraw_end_with_signers(&signers, &accounts)
+                .unwrap();
+            let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
+            let stake_vault =
+                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
+            assert_eq!(vesting.whitelist_pending_transfer, 0);
+            assert_eq!(vesting.whitelist_owned, stake_amount);
+            assert_eq!(
+                stake_vault.delegate,
+                solana_sdk::program_option::COption::None
+            );
+            assert_eq!(stake_vault.delegated_amount, 0);
+        }
+    }
+*/

@@ -99,7 +99,19 @@ pub mod instruction {
         /// 7. `[writable]` NFT mint to burn the token being redeemed.
         /// 8. `[]`         SPL token program.
         /// 9. `[]`         Clock sysvar.
-        Redeem { amount: u64 },
+        Redeem {
+            amount: u64,
+        },
+        /// We can't use this directly until Solana increases their
+        /// cross program call depth limit to be greater than one.
+        /// In the mean time, break this up into three transactions.
+        ///
+        /// * WhitelistWithdrawStart
+        /// * Call whitelisted program directly to perform the transfer
+        /// * WhitelistWithdrawEnd
+        ///
+        /// The above implementation is insecure.
+        ///
         /// Invokes an opaque instruction on a whitelisted program address,
         /// giving it the ability to send `amount` funds to itself.
         /// For example, a user would call this with the staking program
@@ -122,7 +134,7 @@ pub mod instruction {
         ///
         /// 5. `[writable]` Safe vault.
         /// 6. `[writable]` Whitelisted program's vault which will receive
-        ///                 funds (it will transfer to itself via delegate).
+        ///                 funds (it will trasfer to itself via delegate).
         /// 7. `[]`         Whitelisted program's vault authority.
         /// 8. `[]`         Token program id.
         /// .. `[writable]` Variable number of program specific accounts to
@@ -136,6 +148,12 @@ pub mod instruction {
             /// Opaque instruction data to relay to the whitelisted program.
             instruction_data: Vec<u8>,
         },
+        // See comment for `WhitelistWithdraw`.
+        WhitelistWithdrawStart {
+            amount: u64,
+        },
+        // See comment for `WhitelistWithdraw`.
+        WhitelistWithdrawEnd,
         // Relay transaction that will deposit tokens back into the safe.
         // user -> safe
         // safe -> whitelisted program
@@ -152,7 +170,9 @@ pub mod instruction {
         /// 0. `[signed]`   Safe authority.
         /// 1. `[]`         Safe account.
         /// 2. `[writable]` Whitelist.
-        WhitelistAdd { program_id_to_add: Pubkey },
+        WhitelistAdd {
+            program_id_to_add: Pubkey,
+        },
         /// Removes the given program from the whitelist.
         ///
         /// Accounts:
@@ -160,12 +180,16 @@ pub mod instruction {
         /// 0. `[signed]`   Safe authority.
         /// 1. `[]`         Safe account.
         /// 2. `[writable]` Whitelist.
-        WhitelistDelete { program_id_to_delete: Pubkey },
+        WhitelistDelete {
+            program_id_to_delete: Pubkey,
+        },
         /// Sets the new authority for the safe instance.
         ///
         /// 0. `[signer]`   Current safe authority.
         /// 1. `[writable]` Safe instance.
-        SetAuthority { new_authority: Pubkey },
+        SetAuthority {
+            new_authority: Pubkey,
+        },
         /// Migrate sends all the SRM locked by this safe to a new address. This
         /// should be used as a temporary measure to ship a v1 of this program,
         /// allowing new features to be considered and developed.

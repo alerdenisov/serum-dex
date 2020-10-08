@@ -55,6 +55,7 @@ pub enum SafeErrorCode {
     InvalidTokenAccountMint = 42,
     WhitelistFull = 43,
     WhitelistProgramNotFound = 44,
+    WhitelistDepositInvariantViolation = 45,
     Unknown = 1000,
 }
 

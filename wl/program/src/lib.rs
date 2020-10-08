@@ -1,4 +1,4 @@
-//! Program entrypoint.
+//! A dummy staking program for testing.
 
 #![cfg_attr(feature = "strict", deny(warnings))]
 
