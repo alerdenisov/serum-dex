@@ -1187,7 +1187,7 @@ pub mod account_parser {
             #[derive(Copy, Clone)]
             pub struct $WrapperT<'a, 'b: 'a>(&'a AccountInfo<'b>);
             impl<'a, 'b: 'a> $WrapperT<'a, 'b> {
-                fn new(account: &'a AccountInfo<'b> $(,$a: $t)*) -> DexResult<Self> {
+                pub fn new(account: &'a AccountInfo<'b> $(,$a: $t)*) -> DexResult<Self> {
                     let validate_result: DexResult = $validate(account $(,$a)*);
                     validate_result?;
                     Ok($WrapperT(account))
