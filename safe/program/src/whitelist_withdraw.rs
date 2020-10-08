@@ -89,6 +89,8 @@ fn access_control(req: AccessControlRequest) -> Result<(), SafeError> {
     } = req;
 
     // TODO
+    // todo: consider forcing claim to happen first (not necessary for
+    // security, though)
 
     info!("access-control: success");
 

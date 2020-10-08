@@ -141,26 +141,24 @@ fn deposit() {
         assert_eq!(whitelist, expected);
     }
 
+    // Accounts for the next two transacitons.
+    let mut accounts = vec![
+        AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
+        AccountMeta::new(vesting_acc_kp.pubkey(), false),
+        AccountMeta::new_readonly(safe_acc.pubkey(), false),
+        AccountMeta::new_readonly(safe_srm_vault_authority, false),
+        AccountMeta::new_readonly(staking_program_id, false),
+        // Below are relay accounts.
+        AccountMeta::new(safe_srm_vault.pubkey(), false),
+        AccountMeta::new(stake_init.vault, false),
+        AccountMeta::new_readonly(stake_init.vault_authority, false),
+        AccountMeta::new_readonly(spl_token::ID, false),
+        // Program specific relay accounts.
+        AccountMeta::new(stake_init.instance, false),
+    ];
+    let stake_amount = 98;
     // Transfer funds from the safe to the whitelisted program.
-
-    // Transfer funds from the whitelisted program back to the Safe.
     {
-        let mut accounts = vec![
-            AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
-            AccountMeta::new(vesting_acc_kp.pubkey(), false),
-            AccountMeta::new_readonly(safe_acc.pubkey(), false),
-            AccountMeta::new_readonly(safe_srm_vault_authority, false),
-            AccountMeta::new_readonly(staking_program_id, false),
-            // Below are relay accounts.
-            AccountMeta::new(safe_srm_vault.pubkey(), false),
-            AccountMeta::new(stake_init.vault, false),
-            AccountMeta::new_readonly(stake_init.vault_authority, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
-            // Program specific relay accounts.
-            AccountMeta::new(stake_init.instance, false),
-        ];
-
-        let stake_amount = 98;
         let stake_instr = serum_wl_program::instruction::WlInstruction::Stake {
             amount: stake_amount,
         };
@@ -177,83 +175,107 @@ fn deposit() {
             rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
         let expected_amount = expected_deposit - stake_amount;
         assert_eq!(vault.amount, expected_amount);
+        assert_eq!(vault.delegated_amount, 0);
+        assert_eq!(vault.delegate, COption::None);
 
         // Vesting account should be updated.
         let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
-        assert_eq!(vesting.whitelist_owned, expected_amount);
+        assert_eq!(vesting.whitelist_owned, stake_amount);
 
         // Staking program's vault should be incremented.
+        let vault = rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &stake_init.vault);
+        assert_eq!(vault.amount, stake_amount);
     }
-}
 
-/*
+    // Transfer funds from the whitelisted program back to the Safe.
     {
-        let stake_amount = 98;
+        let stake_withdraw = 95;
+        let stake_instr = serum_wl_program::instruction::WlInstruction::Unstake {
+            amount: stake_withdraw,
+        };
         let signers = [client.payer(), &expected_beneficiary];
-        let mut accounts = vec![
+        let mut relay_data = vec![0; stake_instr.size().unwrap() as usize];
+        serum_wl_program::instruction::WlInstruction::pack(stake_instr, &mut relay_data).unwrap();
+        let _tx_sig = client
+            .whitelist_deposit_with_signers(&signers, &accounts, relay_data)
+            .unwrap();
+
+        // Safe vault should be incremented.
+        let vault =
+            rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
+        assert_eq!(
+            vault.amount,
+            expected_deposit - stake_amount + stake_withdraw
+        );
+
+        // Vesting should be updated.
+        let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
+        assert_eq!(vesting.whitelist_owned, stake_amount - stake_withdraw);
+
+        // Stake vault should be decremented.
+        let vault = rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &stake_init.vault);
+        assert_eq!(vault.amount, stake_amount - stake_withdraw);
+    }
+
+    let mint_kp = Keypair::generate(&mut OsRng);
+    let mint = rpc::create_and_init_mint(
+        client.rpc(),
+        client.payer(),
+        &mint_kp,
+        &safe_srm_vault_authority,
+        3,
+    )
+    .unwrap();
+    let nft_tok_acc = rpc::create_token_account(
+        client.rpc(),
+        &mint_kp.pubkey(),
+        &expected_beneficiary.pubkey(),
+        client.payer(),
+    )
+    .unwrap();
+
+    // Claim.
+    {
+        let accounts = [
             AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
             AccountMeta::new(vesting_acc_kp.pubkey(), false),
             AccountMeta::new_readonly(safe_acc.pubkey(), false),
             AccountMeta::new_readonly(safe_srm_vault_authority, false),
-            AccountMeta::new_readonly(staking_program_id, false),
-            // Below are relay accounts.
-            AccountMeta::new(safe_srm_vault.pubkey(), false),
-            AccountMeta::new(stake_init.vault, false),
-            AccountMeta::new_readonly(stake_init.vault_authority, false),
             AccountMeta::new_readonly(spl_token::ID, false),
-            // Program specific relay accounts.
-            AccountMeta::new(stake_init.instance, false),
+            AccountMeta::new_readonly(solana_sdk::sysvar::rent::ID, false),
+            AccountMeta::new(mint_kp.pubkey(), false),
+            AccountMeta::new(nft_tok_acc.pubkey(), false),
         ];
+        let signers = [client.payer(), &expected_beneficiary];
+        let _ = client.claim_with_signers(&signers, &accounts).unwrap();
 
-        // Step 1. Give delegate access to whitelisted program.
-        {
-            let _tx_sig = client
-                .whitelist_withdraw_start_with_signers(&signers, &accounts, stake_amount)
-                .unwrap();
-            let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
-            let safe_vault =
-                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
-            assert_eq!(vesting.whitelist_pending_transfer, stake_amount);
-            assert_eq!(
-                safe_vault.delegate,
-                COption::Some(stake_init.vault_authority)
-            );
-            assert_eq!(safe_vault.delegated_amount, stake_amount);
-        }
-
-        // Step 2. Pull the funds from staking contract.
-        {
-            let stake_accounts = [
-                AccountMeta::new(safe_srm_vault.pubkey(), false),
-                AccountMeta::new(stake_init.vault, false),
-                AccountMeta::new_readonly(stake_init.vault_authority, false),
-                AccountMeta::new_readonly(spl_token::ID, false),
-                AccountMeta::new(stake_init.instance, false),
-            ];
-            stake_client.stake(&stake_accounts, stake_amount).unwrap();
-            let safe_vault =
-                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
-            let stake_vault =
-                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &stake_init.vault);
-            assert_eq!(safe_vault.amount, expected_deposit - stake_amount);
-            assert_eq!(stake_vault.amount, stake_amount);
-        }
-
-        // Step 3. Notify the safe we're done.
-        {
-            client
-                .whitelist_withdraw_end_with_signers(&signers, &accounts)
-                .unwrap();
-            let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
-            let stake_vault =
-                rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
-            assert_eq!(vesting.whitelist_pending_transfer, 0);
-            assert_eq!(vesting.whitelist_owned, stake_amount);
-            assert_eq!(
-                stake_vault.delegate,
-                solana_sdk::program_option::COption::None
-            );
-            assert_eq!(stake_vault.delegated_amount, 0);
-        }
+        let nft = rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &nft_tok_acc.pubkey());
+        assert_eq!(nft.amount, expected_deposit);
+        println!("NFT = {:?}", nft);
     }
-*/
+
+    // Redeem.
+    {
+        // todo
+        let bene_tok_acc = rpc::create_token_account(
+            client.rpc(),
+            &srm_mint.pubkey(),
+            &expected_beneficiary.pubkey(),
+            client.payer(),
+        )
+        .unwrap();
+        let accounts = [
+            AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
+            AccountMeta::new(vesting_acc_kp.pubkey(), false),
+            AccountMeta::new(bene_tok_acc.pubkey(), false),
+            AccountMeta::new(safe_srm_vault.pubkey(), false),
+            AccountMeta::new_readonly(safe_srm_vault_authority, false),
+            AccountMeta::new_readonly(safe_acc.pubkey(), false),
+            AccountMeta::new(nft_tok_acc.pubkey(), false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(solana_sdk::sysvar::rent::ID, false),
+        ];
+        let signers = [client.payer(), &expected_beneficiary];
+        // TODO: call redeem here.
+    }
+}

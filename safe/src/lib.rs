@@ -146,14 +146,13 @@ pub mod instruction {
             /// Opaque instruction data to relay to the whitelisted program.
             instruction_data: Vec<u8>,
         },
-        // Relay transaction that will deposit tokens back into the safe.
-        // user -> safe
-        // safe -> whitelisted program
-        // safe checks deposit went through.
-        WhitelistDeposit {
-            amount: u64,
-            instruction_data: Vec<u8>,
-        },
+        /// Makes an opaque cross program invocation to a whitelisted program.
+        /// It's expected the CPI will deposit funds into the Safe's vault.
+        ///
+        /// Accounts:
+        ///
+        /// Same as WhitelistWithdraw.
+        WhitelistDeposit { instruction_data: Vec<u8> },
         /// Adds the given program to the whitelist. Fails if the whitelist
         /// is full.
         ///

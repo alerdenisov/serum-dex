@@ -1,5 +1,5 @@
 use serum_common::pack::Pack;
-use serum_safe::accounts::{TokenVault, Vesting};
+use serum_safe::accounts::{Safe, TokenVault, Vesting};
 use serum_safe::error::{SafeError, SafeErrorCode};
 use solana_sdk::account_info::{next_account_info, AccountInfo};
 use solana_sdk::info;
@@ -39,6 +39,7 @@ pub fn handler<'a>(
     Vesting::unpack_mut(
         &mut vesting_acc_info.try_borrow_mut_data()?,
         &mut |vesting_acc: &mut Vesting| {
+            let safe = Safe::unpack(&safe_acc_info.try_borrow_data()?)?;
             state_transition(StateTransitionRequest {
                 accounts,
                 vesting_acc_info,
@@ -47,6 +48,7 @@ pub fn handler<'a>(
                 safe_vault_authority_acc_info,
                 mint_acc_info,
                 token_acc_info,
+                nonce: safe.nonce,
             })
             .map_err(Into::into)
         },
@@ -99,9 +101,6 @@ fn access_control<'a>(req: AccessControlRequest<'a>) -> Result<(), SafeError> {
     {
         // unpack_unchecked because it's not yet initialized.
         let token_acc = spl_token::state::Account::unpack(&token_acc_info.try_borrow_data()?)?;
-        if token_acc.state != spl_token::state::AccountState::Uninitialized {
-            return Err(SafeErrorCode::TokenAccountAlreadyInitialized)?;
-        }
         if *token_acc_info.owner != spl_token::ID {
             return Err(SafeErrorCode::InvalidAccountOwner)?;
         }
@@ -119,6 +118,7 @@ fn access_control<'a>(req: AccessControlRequest<'a>) -> Result<(), SafeError> {
     // Mint.
     {
         // TODO: check mint authority is the program dervied addr
+        // TODO: check supply is zero
     }
 
     // Token program.
@@ -151,6 +151,7 @@ fn state_transition<'a, 'b>(req: StateTransitionRequest<'a, 'b>) -> Result<(), S
         mint_acc_info,
         token_acc_info,
         vesting_acc,
+        nonce,
     } = req;
 
     // Mint all the tokens associated with the NFT. They're just
@@ -168,8 +169,6 @@ fn state_transition<'a, 'b>(req: StateTransitionRequest<'a, 'b>) -> Result<(), S
             vesting_acc.start_balance,
         )?;
 
-        let data = safe_acc_info.try_borrow_data()?;
-        let nonce = data[data.len() - 1];
         let signer_seeds = TokenVault::signer_seeds(safe_acc_info.key, &nonce);
 
         solana_sdk::program::invoke_signed(&mint_to_instr, &accounts[..], &[&signer_seeds])?;
@@ -200,4 +199,5 @@ struct StateTransitionRequest<'a, 'b> {
     mint_acc_info: &'a AccountInfo<'a>,
     token_acc_info: &'a AccountInfo<'a>,
     vesting_acc: &'b mut Vesting,
+    nonce: u8,
 }

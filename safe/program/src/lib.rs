@@ -55,10 +55,9 @@ fn process_instruction<'a>(
             amount,
             instruction_data,
         } => whitelist_withdraw::handler(program_id, accounts, amount, instruction_data),
-        SafeInstruction::WhitelistDeposit {
-            amount,
-            instruction_data,
-        } => whitelist_deposit::handler(program_id, accounts, amount, instruction_data),
+        SafeInstruction::WhitelistDeposit { instruction_data } => {
+            whitelist_deposit::handler(program_id, accounts, instruction_data)
+        }
         SafeInstruction::WhitelistAdd { program_id_to_add } => {
             whitelist_add::handler(program_id, accounts, program_id_to_add)
         }

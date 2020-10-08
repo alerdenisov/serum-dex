@@ -39,15 +39,6 @@ pub struct Vesting {
     pub locked_nft_mint: Pubkey,
     /// The amount of tokens in custody of whitelisted programs.
     pub whitelist_owned: u64,
-
-    // HACK to get around the fact that Solana doesn't allow cross program
-    // invocation call depth > 1. So we keep this metadata while a whitelist
-    // transfer is in progress.
-    //
-    // Note: this effectively acts as a lock on whitelist withdrawals.
-    // If this is non-zero, a withdrawal-start will fail until withdrawal-end
-    // is invoked.
-    pub whitelist_pending_transfer: u64,
 }
 
 impl Vesting {
@@ -66,7 +57,7 @@ impl Vesting {
 
     /// Amount available for whitelisted programs to transfer.
     pub fn available_for_whitelist(&self) -> u64 {
-        self.balance - self.whitelist_owned - self.whitelist_pending_transfer
+        self.balance - self.whitelist_owned
     }
 
     // The amount vested that's theoretically available for withdrawal--i.e.,
@@ -139,7 +130,6 @@ mod tests {
         let locked_nft_mint = Pubkey::new_rand();
         let whitelist_owned = 14;
         let claimed = true;
-        let whitelist_pending_transfer = 2;
         let vesting_acc = Vesting {
             safe,
             claimed,
@@ -152,7 +142,6 @@ mod tests {
             period_count,
             locked_nft_mint,
             whitelist_owned,
-            whitelist_pending_transfer,
         };
 
         // When I pack it into a slice.
@@ -172,7 +161,6 @@ mod tests {
         assert_eq!(va.period_count, period_count);
         assert_eq!(va.locked_nft_mint, locked_nft_mint);
         assert_eq!(va.whitelist_owned, whitelist_owned);
-        assert_eq!(va.whitelist_pending_transfer, whitelist_pending_transfer);
     }
 
     #[test]
@@ -188,7 +176,6 @@ mod tests {
         let locked_nft_mint = Pubkey::new_rand();
         let whitelist_owned = 0;
         let claimed = true;
-        let whitelist_pending_transfer = 0;
         let vesting_acc = Vesting {
             safe,
             claimed,
@@ -201,7 +188,6 @@ mod tests {
             start_slot,
             end_slot,
             period_count,
-            whitelist_pending_transfer,
         };
         assert_eq!(0, vesting_acc.available_for_withdrawal(10));
         assert_eq!(0, vesting_acc.available_for_withdrawal(11));

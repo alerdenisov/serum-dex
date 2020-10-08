@@ -13,7 +13,6 @@ use std::convert::Into;
 pub fn handler<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
-    amount: u64,
     instruction_data: Vec<u8>,
 ) -> Result<(), SafeError> {
     info!("handler: whitelist_deposit");
@@ -53,7 +52,6 @@ pub fn handler<'a>(
             let safe = Safe::unpack(&safe_acc_info.try_borrow_data()?)?;
             state_transition(StateTransitionRequest {
                 accounts,
-                amount,
                 instruction_data: instruction_data.clone(),
                 safe_acc: safe_acc_info.key,
                 nonce: safe.nonce,
@@ -102,7 +100,6 @@ fn state_transition(req: StateTransitionRequest) -> Result<(), SafeError> {
         vesting,
         instruction_data,
         accounts,
-        amount,
         nonce,
         safe_acc,
         safe_vault_acc_info,
@@ -176,7 +173,6 @@ struct StateTransitionRequest<'a, 'b> {
     instruction_data: Vec<u8>,
     vesting: &'b mut Vesting,
     accounts: &'a [AccountInfo<'a>],
-    amount: u64,
     nonce: u8,
     safe_acc: &'a Pubkey,
     safe_vault_acc_info: &'a AccountInfo<'a>,
