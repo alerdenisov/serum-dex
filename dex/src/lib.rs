@@ -11,23 +11,4 @@ mod fees;
 pub mod instruction;
 pub mod matching;
 pub mod state;
-
-#[cfg(feature = "program")]
-use solana_sdk::{
-    account_info::AccountInfo, entrypoint::ProgramResult, entrypoint_deprecated, pubkey::Pubkey,
-};
-
-#[cfg(feature = "program")]
-entrypoint_deprecated!(process_instruction);
-#[cfg(feature = "program")]
-fn process_instruction(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    instruction_data: &[u8],
-) -> ProgramResult {
-    Ok(state::State::process(
-        program_id,
-        accounts,
-        instruction_data,
-    )?)
-}
+pub mod entrypoint;

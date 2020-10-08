@@ -8,6 +8,7 @@ repository = "https://github.com/project-serum/serum-dex"
 edition = "2018"
 
 [features]
+no-entrypoint = []
 program = ["solana-sdk/program", "spl-token/program", "spl-token/no-entrypoint"]
 client = ["solana-sdk/default", "spl-token/default"]
 fuzz = ["arbitrary", "solana-sdk/curve25519-dalek"]
