@@ -1227,6 +1227,8 @@ pub mod account_parser {
         Ok(())
     });
 
+    
+    #[macro_export]
     macro_rules! declare_validated_token_account_wrapper {
         ($WrapperT:ident, $validate:expr $(, $a:ident : $t:ty)*) => {
             #[derive(Copy, Clone)]
