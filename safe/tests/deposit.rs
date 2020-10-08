@@ -3,11 +3,13 @@ use rand::rngs::OsRng;
 use serum_common::client::rpc;
 use serum_common::pack::Pack;
 use serum_safe::accounts::{Vesting, Whitelist};
+use serum_wl_program::client::Client as StakeClient;
 use solana_client_gen::solana_sdk;
 use solana_client_gen::solana_sdk::commitment_config::CommitmentConfig;
 use solana_client_gen::solana_sdk::instruction::AccountMeta;
 use solana_client_gen::solana_sdk::pubkey::Pubkey;
 use solana_client_gen::solana_sdk::signature::{Keypair, Signer};
+use spl_token::state::Account as TokenAccount;
 
 mod common;
 
@@ -19,6 +21,7 @@ fn deposit() {
     let Initialized {
         client,
         safe_acc,
+        srm_mint,
         safe_authority,
         safe_srm_vault,
         safe_srm_vault_authority,
@@ -109,12 +112,16 @@ fn deposit() {
         assert_eq!(safe_vault_spl_acc.owner, safe_srm_vault_authority);
     }
 
-    // Add to whitelist.
+    // Setup the staking program.
+    let staking_program_id: Pubkey = std::env::var("TEST_WHITELIST_PROGRAM_ID")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let stake_client = serum_common_tests::client_at::<StakeClient>(staking_program_id);
+    let stake_init = stake_client.init(&srm_mint.pubkey()).unwrap();
+
+    // Add it to whitelist.
     {
-        let staking_program_id: Pubkey = std::env::var("TEST_WHITELIST_PROGRAM_ID")
-            .unwrap()
-            .parse()
-            .unwrap();
         let accounts = [
             AccountMeta::new_readonly(safe_authority.pubkey(), true),
             AccountMeta::new_readonly(safe_acc.pubkey(), false),
@@ -134,5 +141,44 @@ fn deposit() {
     }
 
     // Transfer funds from the safe to the whitelisted program.
-    {}
+    {
+        let mut accounts = vec![
+            AccountMeta::new_readonly(expected_beneficiary.pubkey(), true),
+            AccountMeta::new(vesting_acc_kp.pubkey(), false),
+            AccountMeta::new_readonly(safe_acc.pubkey(), false),
+            AccountMeta::new_readonly(safe_srm_vault_authority, false),
+            AccountMeta::new_readonly(staking_program_id, false),
+            // Below are relay accounts.
+            AccountMeta::new(safe_srm_vault.pubkey(), false),
+            AccountMeta::new(stake_init.vault, false),
+            AccountMeta::new_readonly(stake_init.vault_authority, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            // Program specific relay accounts.
+            AccountMeta::new(stake_init.instance, false),
+        ];
+
+        let stake_amount = 98;
+        let stake_instr = serum_wl_program::instruction::WlInstruction::Stake {
+            amount: stake_amount,
+        };
+        let signers = [client.payer(), &expected_beneficiary];
+        let mut relay_data = vec![0; stake_instr.size().unwrap() as usize];
+        serum_wl_program::instruction::WlInstruction::pack(stake_instr, &mut relay_data).unwrap();
+
+        let _tx_sig = client
+            .whitelist_withdraw_with_signers(&signers, &accounts, stake_amount, relay_data)
+            .unwrap();
+
+        // Safe's vault should be decremented.
+        let vault =
+            rpc::account_token_unpacked::<TokenAccount>(client.rpc(), &safe_srm_vault.pubkey());
+        let expected_amount = expected_deposit - stake_amount;
+        assert_eq!(vault.amount, expected_amount);
+
+        // Vesting account should be updated.
+        let vesting = rpc::account_unpacked::<Vesting>(client.rpc(), &vesting_acc_kp.pubkey());
+        assert_eq!(vesting.whitelist_owned, expected_amount);
+
+        // Staking program's vault should be incremented.
+    }
 }

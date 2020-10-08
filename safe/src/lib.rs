@@ -120,10 +120,10 @@ pub mod instruction {
         ///
         /// All accounts below will be relayed to the whitelisted program.
         ///
-        /// 5. `[]`         Safe vault.
-        /// 6. `[writable]` Whitelisted program's vault which will recieve
+        /// 5. `[writable]` Safe vault.
+        /// 6. `[writable]` Whitelisted program's vault which will receive
         ///                 funds (it will transfer to itself via delegate).
-        /// 7. `[writable]` Whitelisted program's vault authority.
+        /// 7. `[]`         Whitelisted program's vault authority.
         /// 8. `[]`         Token program id.
         /// .. `[writable]` Variable number of program specific accounts to
         ///                 relay to the program, along with the above

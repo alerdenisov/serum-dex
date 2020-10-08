@@ -2963,7 +2963,22 @@ dependencies = [
  "serde",
  "serum-common",
  "serum-common-tests",
+ "serum-wl-program",
  "solana-client-gen",
+ "spl-token",
+ "thiserror",
+]
+
+[[package]]
+name = "serum-wl-program"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "lazy_static",
+ "serde",
+ "serum-common",
+ "solana-client-gen",
+ "solana-sdk",
  "spl-token",
  "thiserror",
 ]

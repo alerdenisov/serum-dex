@@ -118,6 +118,7 @@ fn state_transition(req: StateTransitionRequest) -> Result<(), SafeError> {
 
     // Approve delegate access for the amount.
     {
+        info!("approving delegate");
         let approve_instr = spl_token::instruction::approve(
             &tok_prog_acc_info.key,
             &safe_vault_acc_info.key,
@@ -131,6 +132,7 @@ fn state_transition(req: StateTransitionRequest) -> Result<(), SafeError> {
 
     // Invoke relay.
     {
+        info!("invoking relay");
         let mut meta_accounts = vec![
             AccountMeta::new(*safe_vault_acc_info.key, false),
             AccountMeta::new(*wl_prog_vault_acc_info.key, false),
@@ -150,7 +152,7 @@ fn state_transition(req: StateTransitionRequest) -> Result<(), SafeError> {
             data: instruction_data,
         };
 
-        solana_sdk::program::invoke_signed(&relay_instruction, &accounts[..], &[])?;
+        solana_sdk::program::invoke(&relay_instruction, &accounts[..])?;
     }
 
     // Revoke delegate access.

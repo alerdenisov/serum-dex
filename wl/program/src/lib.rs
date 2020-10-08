@@ -8,10 +8,13 @@ use serum_common::pack::*;
 use solana_client_gen::prelude::*;
 use solana_sdk::account_info::{next_account_info, AccountInfo};
 use solana_sdk::entrypoint::ProgramResult;
+#[cfg(feature = "program")]
 use solana_sdk::info;
 use solana_sdk::pubkey::Pubkey;
 
+#[cfg(feature = "program")]
 solana_sdk::entrypoint!(process_instruction);
+#[cfg(feature = "program")]
 fn process_instruction(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -34,10 +37,11 @@ fn process_instruction(
     Ok(())
 }
 
+#[cfg(feature = "program")]
 mod handlers {
     use super::*;
     pub fn initialize(accounts: &[AccountInfo], nonce: u8) -> ProgramResult {
-        info!("hander: initialize");
+        info!("handler: initialize");
 
         let acc_infos = &mut accounts.iter();
         let wl_acc_info = next_account_info(acc_infos)?;
@@ -52,6 +56,7 @@ mod handlers {
     }
 
     pub fn stake(accounts: &[AccountInfo], amount: u64) -> ProgramResult {
+        info!("handler: stake");
         let acc_infos = &mut accounts.iter();
 
         let token_acc_info = next_account_info(acc_infos)?;
@@ -60,8 +65,8 @@ mod handlers {
         let token_program_acc_info = next_account_info(acc_infos)?;
         let wl_acc_info = next_account_info(acc_infos)?;
 
-        let data = wl_acc_info.try_borrow_data()?;
-        let nonce = data[0];
+        let wl = accounts::Wl::unpack(&wl_acc_info.try_borrow_data()?)?;
+        let nonce = wl.nonce;
         let signer_seeds = accounts::signer_seeds(wl_acc_info.key, &nonce);
 
         // Delegate transfer to oneself.
@@ -86,6 +91,7 @@ mod handlers {
     }
 
     pub fn unstake(accounts: &[AccountInfo], amount: u64) -> ProgramResult {
+        info!("handler: unstake");
         let acc_infos = &mut accounts.iter();
 
         let token_acc_info = next_account_info(acc_infos)?;
@@ -94,8 +100,8 @@ mod handlers {
         let token_program_acc_info = next_account_info(acc_infos)?;
         let wl_acc_info = next_account_info(acc_infos)?;
 
-        let data = wl_acc_info.try_borrow_data()?;
-        let nonce = data[0];
+        let wl = accounts::Wl::unpack(&wl_acc_info.try_borrow_data()?)?;
+        let nonce = wl.nonce;
         let signer_seeds = accounts::signer_seeds(wl_acc_info.key, &nonce);
 
         let transfer_instruction = spl_token::instruction::transfer(
@@ -121,7 +127,15 @@ mod handlers {
 
 mod accounts {
     use super::*;
-    #[derive(Serialize, Deserialize)]
+
+    #[cfg(feature = "client")]
+    lazy_static::lazy_static! {
+        pub static ref WL_SIZE: u64 = Wl::default()
+                    .size()
+                    .expect("Vesting has a fixed size");
+    }
+
+    #[derive(Default, Serialize, Deserialize)]
     pub struct Wl {
         pub nonce: u8,
     }
@@ -132,7 +146,7 @@ mod accounts {
     }
 }
 
-#[cfg_attr(feature = "client", solana_client_gen)]
+#[cfg_attr(feature = "client", solana_client_gen(ext))]
 pub mod instruction {
     use super::*;
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -157,7 +171,87 @@ pub mod instruction {
         /// 3. `[]`         Token program id.
         /// 4. `[]`         Wl.
         Unstake { amount: u64 },
-        // todo: unstake
     }
-    serum_common::packable!(WlInstruction);
 }
+
+#[cfg(feature = "client")]
+solana_client_gen_extension! {
+    impl Client {
+        pub fn init(&self, mint: &Pubkey) -> Result<InitializeResponse, ClientError> {
+            let wl_acc = Keypair::generate(&mut OsRng);
+            let (vault_authority, nonce) = Pubkey::find_program_address(
+                &[wl_acc.pubkey().as_ref()],
+                self.program(),
+            );
+
+            let vault = serum_common::client::rpc::create_token_account(
+                self.rpc(),
+                mint,
+                &vault_authority,
+                self.payer(),
+            ).map_err(|e| ClientError::RawError(e.to_string()))?;
+
+
+            let lamports = self
+                .rpc()
+                .get_minimum_balance_for_rent_exemption(
+                    *crate::accounts::WL_SIZE as usize,
+                )
+                .map_err(ClientError::RpcError)?;
+
+            let create_acc_instr = system_instruction::create_account(
+                &self.payer().pubkey(),
+                &wl_acc.pubkey(),
+                lamports,
+                *crate::accounts::WL_SIZE,
+                self.program(),
+            );
+
+            let initialize_instr = super::instruction::initialize(
+                *self.program(),
+                &[AccountMeta::new(wl_acc.pubkey(), false)],
+                nonce,
+            );
+
+            let instructions = vec![create_acc_instr, initialize_instr];
+
+            let tx = {
+                let (recent_hash, _fee_calc) = self
+                    .rpc()
+                    .get_recent_blockhash()
+                    .map_err(|e| ClientError::RawError(e.to_string()))?;
+                let signers = vec![self.payer(), &wl_acc, &wl_acc];
+                Transaction::new_signed_with_payer(
+                    &instructions,
+                    Some(&self.payer().pubkey()),
+                    &signers,
+                    recent_hash,
+                )
+            };
+            self
+                .rpc
+                .send_and_confirm_transaction_with_spinner_and_config(
+                    &tx,
+                    self.opts.commitment,
+                    self.opts.tx,
+                )
+                .map_err(ClientError::RpcError)
+                .map(|sig| InitializeResponse {
+                    signature: sig,
+                    vault_authority,
+                    vault: vault.pubkey(),
+                    instance: wl_acc.pubkey(),
+                    nonce,
+                })
+        }
+    }
+    pub struct InitializeResponse {
+        pub signature: solana_sdk::signature::Signature,
+        pub nonce: u8,
+        pub instance: Pubkey,
+        pub vault: Pubkey,
+        pub vault_authority: Pubkey,
+    }
+}
+
+serum_common::packable!(crate::instruction::WlInstruction);

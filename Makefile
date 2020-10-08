@@ -78,6 +78,7 @@ test-progra%:
 	TEST_PROGRAM_ID=$(TEST_PROGRAM_ID) \
 	TEST_PAYER_FILEPATH=$(TEST_PAYER_FILEPATH) \
 	TEST_CLUSTER=$(TEST_CLUSTER) \
+	TEST_WHITELIST_PROGRAM_ID=$(TEST_WHITELIST_PROGRAM_ID) \
 	cargo test --features test,client -- --nocapture $(args)
 
 tes%: deplo% test-progra%
