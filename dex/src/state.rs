@@ -1182,6 +1182,7 @@ fn send_from_vault<'a, 'b: 'a>(
 pub mod account_parser {
     use super::*;
 
+    #[macro_export]
     macro_rules! declare_validated_account_wrapper {
         ($WrapperT:ident, $validate:expr $(, $a:ident : $t:ty)*) => {
             #[derive(Copy, Clone)]
