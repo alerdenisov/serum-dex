@@ -20,8 +20,6 @@ mod whitelist_add;
 mod whitelist_delete;
 mod whitelist_deposit;
 mod whitelist_withdraw;
-mod whitelist_withdraw_end;
-mod whitelist_withdraw_start;
 
 solana_sdk::entrypoint!(process_instruction);
 fn process_instruction<'a>(
@@ -57,12 +55,6 @@ fn process_instruction<'a>(
             amount,
             instruction_data,
         } => whitelist_withdraw::handler(program_id, accounts, amount, instruction_data),
-        SafeInstruction::WhitelistWithdrawStart { amount } => {
-            whitelist_withdraw_start::handler(program_id, accounts, amount)
-        }
-        SafeInstruction::WhitelistWithdrawEnd => {
-            whitelist_withdraw_end::handler(program_id, accounts)
-        }
         SafeInstruction::WhitelistDeposit {
             amount,
             instruction_data,
