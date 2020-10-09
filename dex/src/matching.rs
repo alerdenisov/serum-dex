@@ -58,14 +58,14 @@ pub struct OrderBookState<'a> {
 }
 
 impl<'ob> OrderBookState<'ob> {
-    fn orders_mut(&mut self, side: Side) -> &mut Slab {
+    pub fn orders_mut(&mut self, side: Side) -> &mut Slab {
         match side {
             Side::Bid => self.bids,
             Side::Ask => self.asks,
         }
     }
 
-    fn find_bbo(&self, side: Side) -> Option<NodeHandle> {
+    pub fn find_bbo(&self, side: Side) -> Option<NodeHandle> {
         match side {
             Side::Bid => self.bids.find_max(),
             Side::Ask => self.asks.find_min(),
