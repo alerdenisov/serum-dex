@@ -308,7 +308,7 @@ impl MarketState {
     }
 
     #[inline]
-    fn check_coin_vault(&self, vault: account_parser::TokenAccount) -> DexResult {
+    pub fn check_coin_vault(&self, vault: account_parser::TokenAccount) -> DexResult {
         if self.coin_vault != vault.inner().key.to_aligned_bytes() {
             Err(DexErrorCode::WrongCoinVault)?
         }
@@ -316,7 +316,7 @@ impl MarketState {
     }
 
     #[inline]
-    fn check_pc_vault(&self, vault: account_parser::TokenAccount) -> DexResult {
+    pub fn check_pc_vault(&self, vault: account_parser::TokenAccount) -> DexResult {
         if self.pc_vault != vault.inner().key.to_aligned_bytes() {
             Err(DexErrorCode::WrongPcVault)?
         }
@@ -324,7 +324,7 @@ impl MarketState {
     }
 
     #[inline]
-    fn check_coin_payer(&self, payer: account_parser::TokenAccount) -> DexResult {
+    pub fn check_coin_payer(&self, payer: account_parser::TokenAccount) -> DexResult {
         if &payer.inner().try_borrow_data()?[..32] != transmute_to_bytes(&self.coin_mint) {
             Err(DexErrorCode::WrongCoinMint)?
         }
@@ -332,7 +332,7 @@ impl MarketState {
     }
 
     #[inline]
-    fn check_pc_payer(&self, payer: account_parser::TokenAccount) -> DexResult {
+    pub fn check_pc_payer(&self, payer: account_parser::TokenAccount) -> DexResult {
         if &payer.inner().try_borrow_data()?[..32] != transmute_to_bytes(&self.pc_mint) {
             Err(DexErrorCode::WrongPcMint)?
         }
