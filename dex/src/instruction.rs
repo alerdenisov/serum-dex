@@ -20,12 +20,12 @@ use proptest_derive::Arbitrary;
 
 pub mod srm_token {
     use solana_sdk::declare_id;
-    declare_id!("SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt");
+    declare_id!("4J8vw5J4EXRGfZkWotC6tVH1hTKCtWnGQNpHmE3uZaU8");
 }
 
 pub mod msrm_token {
     use solana_sdk::declare_id;
-    declare_id!("MSRMcoVyrFxnSgo5uXwone5SKcGhT1KEJMFEkMEWf9L");
+    declare_id!("3ELdrwLN6Zcmzi4aU3DtdumPa5UWz8H3vVJs2GGzQWEJ");
 }
 
 pub mod disable_authority {

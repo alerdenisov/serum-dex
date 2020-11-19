@@ -103,6 +103,7 @@ impl<'ob> OrderBookState<'ob> {
         event_q: &mut EventQueue,
         limit: &mut u16,
     ) -> DexResult<Option<Request>> {
+        // println!("{:#?}", request.as_view()?);
         Ok(match request.as_view()? {
             RequestView::NewOrder {
                 side,

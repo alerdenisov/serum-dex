@@ -2099,6 +2099,8 @@ impl State {
                 &event.order_id
             )?;
 
+            // println!("{:#?}", event.as_view()?);
+
             match event.as_view()? {
                 EventView::Fill {
                     side,
@@ -2236,29 +2238,6 @@ impl State {
                     .pc_deposits_total
                     .checked_add(deposit_amount)
                     .unwrap();
-
-                solana_sdk::info!(&format!(
-                    r#"
-Params:
-    lock_qty_lots:    {},
-    max_qty:          {},
-    price:            {},
-    native_lock_qty_before_fee: {},
-    pc_lot_size:      {},
-    lock_qty_native:  {},
-    native_pc_qty_locked: {},
-    free_qty_to_lock: {},
-    fee: {}"#,
-                    lock_qty_lots,
-                    instruction.max_qty,
-                    instruction.limit_price,
-                    native_lock_qty_before_fee,
-                    market.pc_lot_size,
-                    lock_qty_native,
-                    native_pc_qty_locked.unwrap(),
-                    free_qty_to_lock,
-                    fee_tier.taker_fee(native_lock_qty_before_fee)
-                ));
             }
             Side::Ask => {
                 let lock_qty_native = instruction
